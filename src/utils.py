@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 from .logger import create_logger, PD_Stats
-
+import subprocess
 import torch.distributed as dist
 
 FALSY_STRINGS = {"off", "false", "0"}
@@ -44,12 +44,26 @@ def init_distributed_mode(args):
     """
 
     args.is_slurm_job = "SLURM_JOB_ID" in os.environ
-
     if args.is_slurm_job:
         args.rank = int(os.environ["SLURM_PROCID"])
         args.world_size = int(os.environ["SLURM_NNODES"]) * int(
             os.environ["SLURM_TASKS_PER_NODE"][0]
         )
+        node_list = os.environ.get("SLURM_STEP_NODELIST")
+        if node_list is None:
+            node_list = os.environ.get("SLURM_JOB_NODELIST")
+        try:
+            hostnames = subprocess.check_output(
+                        ["scontrol", "show", "hostnames", node_list]
+            )
+            args.dist_url = "tcp://{host}:{port}".format(
+                host=hostnames.split()[0].decode("utf-8"),
+                port=40000,
+            )
+        except subprocess.CalledProcessError as e:  # scontrol failed
+            print('Scontrol failed')
+        except FileNotFoundError:  # Slurm is not installed
+            print('SLURM not Installed')
     else:
         # multi-GPU job (local or multi-node) - jobs started with torch.distributed.launch
         # read environment variables

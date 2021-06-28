@@ -31,7 +31,7 @@ from src.utils import (
     AverageMeter,
     init_distributed_mode,
 )
-from src.multicropdataset import MultiCropDataset
+from src.multicropdataset import MultiCropDatasetSTL10
 import src.resnet50 as resnet_models
 
 logger = getLogger()
@@ -43,6 +43,7 @@ parser = argparse.ArgumentParser(description="Implementation of DeepCluster-v2")
 #########################
 parser.add_argument("--data_path", type=str, default="/path/to/imagenet",
                     help="path to dataset repository")
+parser.add_argument("--dataset", default='stl10')
 parser.add_argument("--nmb_crops", type=int, default=[2], nargs="+",
                     help="list of number of crops (example: [2, 6])")
 parser.add_argument("--size_crops", type=int, default=[224], nargs="+",
@@ -119,7 +120,7 @@ def main():
     logger, training_stats = initialize_exp(args, "epoch", "loss")
 
     # build data
-    train_dataset = MultiCropDataset(
+    train_dataset = MultiCropDatasetSTL10(
         args.data_path,
         args.size_crops,
         args.nmb_crops,
@@ -247,7 +248,6 @@ def train(loader, model, optimizer, epoch, schedule, local_memory_index, local_m
     losses = AverageMeter()
     model.train()
     cross_entropy = nn.CrossEntropyLoss(ignore_index=-100)
-
     assignments = cluster_memory(model, local_memory_index, local_memory_embeddings, len(loader.dataset))
     logger.info('Clustering for epoch {} done.'.format(epoch))
 

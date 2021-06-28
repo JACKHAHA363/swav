@@ -10,9 +10,56 @@ from logging import getLogger
 from PIL import ImageFilter
 import numpy as np
 import torchvision.datasets as datasets
+from torchvision.datasets.stl10 import STL10
 import torchvision.transforms as transforms
 
 logger = getLogger()
+
+
+class MultiCropDatasetSTL10(STL10):
+    def __init__(
+        self,
+        data_path,
+        size_crops,
+        nmb_crops,
+        min_scale_crops,
+        max_scale_crops,
+        size_dataset=-1,
+        return_index=False,
+    ):
+        super(MultiCropDatasetSTL10, self).__init__(
+            data_path, split='train+unlabeled', download=True)
+        assert len(size_crops) == len(nmb_crops)
+        assert len(min_scale_crops) == len(nmb_crops)
+        assert len(max_scale_crops) == len(nmb_crops)
+        if size_dataset >= 0:
+            self.samples = self.samples[:size_dataset]
+        self.return_index = return_index
+
+        color_transform = [get_color_distortion(), PILRandomGaussianBlur()]
+        mean = [0.43, 0.42, 0.39]
+        std = [0.27, 0.26, 0.27]
+        trans = []
+        for i in range(len(size_crops)):
+            randomresizedcrop = transforms.RandomResizedCrop(
+                size_crops[i],
+                scale=(min_scale_crops[i], max_scale_crops[i]),
+            )
+            trans.extend([transforms.Compose([
+                randomresizedcrop,
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.Compose(color_transform),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean, std=std)])
+            ] * nmb_crops[i])
+        self.trans = trans
+
+    def __getitem__(self, index):
+        image, _ = super().__getitem__(index)
+        multi_crops = list(map(lambda trans: trans(image), self.trans))
+        if self.return_index:
+            return index, multi_crops
+        return multi_crops
 
 
 class MultiCropDataset(datasets.ImageFolder):
