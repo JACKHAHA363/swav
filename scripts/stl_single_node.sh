@@ -6,24 +6,20 @@
 #
 
 #!/bin/bash
-#SBATCH --nodes=2
-#SBATCH --gpus=16
-#SBATCH --ntasks-per-node=8
+#SBATCH --nodes=1
+#SBATCH --gpus=4
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=10
 #SBATCH --job-name=deepclusterv2_400ep_2x224_pretrain
 #SBATCH --time=25:00:00
-#SBATCH --mem=450G
-
-#master_node=${SLURM_NODELIST:0:20}${SLURM_NODELIST:10:4}
-#dist_url="tcp://"
-#dist_url+=$master_node
-#dist_url+=:40000
+#SBATCH --mem=64G
 
 DATASET_PATH="/data/home/lyuchen/swav_exp/new_stl10"
 EXPERIMENT_PATH="./experiments/stl/deepclusterv2_400ep_2x224_pretrain"
 mkdir -p $EXPERIMENT_PATH
 
-CMD="python -u main_deepclusterv2.py \
+CMD="python -m torch.distributed.launch --nnodes 1 --nproc_per_node 1 \
+main_deepclusterv2.py \
 --data_path $DATASET_PATH \
 --nmb_crops 2 \
 --size_crops 96 \

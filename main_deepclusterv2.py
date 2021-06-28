@@ -74,7 +74,7 @@ parser.add_argument("--batch_size", default=64, type=int,
                     help="batch size per gpu, i.e. how many unique instances per gpu")
 parser.add_argument("--base_lr", default=4.8, type=float, help="base learning rate")
 parser.add_argument("--final_lr", type=float, default=0, help="final learning rate")
-parser.add_argument("--freeze_prototypes_niters", default=1e10, type=int,
+parser.add_argument("--freeze_prototypes_niters", default=1000, type=int,
                     help="freeze the prototypes during this many iterations from the start")
 parser.add_argument("--wd", default=1e-6, type=float, help="weight decay")
 parser.add_argument("--warmup_epochs", default=10, type=int, help="number of warmup epochs")

@@ -42,8 +42,8 @@ def init_distributed_mode(args):
         - world_size
         - rank
     """
-
-    args.is_slurm_job = "SLURM_JOB_ID" in os.environ
+    args.is_slurm_job = "SLURM_JOB_ID" in os.environ and "RANK" not in os.environ \
+        and "WORLD_SIZE" not in os.environ
     if args.is_slurm_job:
         args.rank = int(os.environ["SLURM_PROCID"])
         args.world_size = int(os.environ["SLURM_NNODES"]) * int(
