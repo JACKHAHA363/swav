@@ -183,25 +183,10 @@ def gini(x):
 
 
 def collect_knn_results(train_features, train_labels, test_features, test_labels,
-                        nb_knn, temperature, train_ratio=0.2, with_train=True):
-    print("Features are ready!\nStart the k-NN classification.")
+                        nb_knn, temperature):
     nb_classes = (train_labels.max()).item() + 1
     test_result = knn_classifier(train_features, train_labels,
                                  test_features, test_labels, nb_knn,
                                  temperature, num_classes=nb_classes)
-    if with_train:
-        train_ids = [i for i in range(train_labels.shape[0])]
-        random.shuffle(train_ids)
-        train_ids = train_ids[:int(train_ratio * len(train_ids))]
-        train_result = knn_classifier(train_features, train_labels,
-                                      train_features[train_ids],
-                                      train_labels[train_ids],
-                                      nb_knn, temperature,
-                                      num_classes=nb_classes,
-                                      leave_one_out=True)
-        test_result = test_result.set_index('k')
-        train_result = train_result.set_index('k')
-        test_result['train_top1'] = train_result['top1']
-        test_result['train_top5'] = train_result['top5']
     return test_result
 

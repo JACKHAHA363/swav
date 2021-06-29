@@ -19,7 +19,7 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from knn_utils import collect_knn_results
-
+import random
 from src.utils import (
     initialize_exp,
     fix_random_seeds,
@@ -43,32 +43,35 @@ parser.add_argument("--data_path", type=str, default="/data/home/lyuchen/swav_ex
 parser.add_argument("--workers", default=10, type=int,
                     help="number of data loading workers")
 parser.add_argument("--batch_size", default=256, type=int)
+parser.add_argument("--debug", action='store_true')
+parser.add_argument("--nb_knn", default=[1, 5, 10, 20])
+parser.add_argument("--temperature", default=0.1)
 
 #########################
 #### model parameters ###
 #########################
 parser.add_argument("--arch", default="resnet50", type=str, help="convnet architecture")
-
+parser.add_argument("--pretrained", default=None)
 class STL10withindex(datasets.STL10):
     def __getitem__(self, idx):
         img, label = super().__getitem__(idx)
         return idx, img, label
 
 @torch.no_grad()
-def extract_features(model, data_loader):
+def extract_features(args, model, data_loader):
     metric_logger = MetricLogger(delimiter="  ")
     features = None
     count = 0
     labels = None
     for index, samples, lab in metric_logger.log_every(data_loader, 10):
-        import ipdb; ipdb.set_trace()
         samples = samples.cuda(non_blocking=True)
         index = index.cuda(non_blocking=True)
         feats = model.forward_backbone(samples).clone()
 
-        features = torch.zeros(len(data_loader.dataset), feats.shape[-1])
-        labels = torch.zeros(len(data_loader.dataset)).long()
-        print(f"Storing features into tensor of shape {features.shape}")
+        if features is None:
+            features = torch.zeros(len(data_loader.dataset), feats.shape[-1])
+            labels = torch.zeros(len(data_loader.dataset)).long()
+            print(f"Storing features into tensor of shape {features.shape}")
         index_all = index
         output_all = feats
 
@@ -90,31 +93,23 @@ def main():
     fix_random_seeds(args.seed)
 
     # build data
-    train_dataset = STL10withindex(args.data_path, split='train')
-    val_dataset = STL10withindex(args.data_path, split="test")
     tr_normalize = transforms.Normalize(
         mean = [0.43, 0.42, 0.39],
         std = [0.27, 0.26, 0.27]
     )
-    train_dataset.transform = transforms.Compose([
-        transforms.Resize(96),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        tr_normalize,
-    ])
-    val_dataset.transform = transforms.Compose([
+    transform = transforms.Compose([
         transforms.Resize(96),
         transforms.ToTensor(),
         tr_normalize,
     ])
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        num_workers=args.workers,
-        pin_memory=True,
-    )
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset,
+    dataset = STL10withindex(args.data_path, split='train', transform=transform)
+    allids = [i for i in range(len(dataset))]
+    random.shuffle(allids)
+    split = int(0.9 * len(allids))
+    train_ids = allids[:split]
+    test_ids = allids[split:]
+    data_loader = torch.utils.data.DataLoader(
+        dataset,
         batch_size=args.batch_size,
         num_workers=args.workers,
         pin_memory=True,
@@ -129,7 +124,7 @@ def main():
     model.eval()
 
     # load weights
-    if os.path.isfile(args.pretrained):
+    if args.pretrained is not None and os.path.isfile(args.pretrained):
         state_dict = torch.load(args.pretrained, map_location="cuda:" + str(args.gpu_to_work_on))
         if "state_dict" in state_dict:
             state_dict = state_dict["state_dict"]
@@ -147,20 +142,18 @@ def main():
         logger.info("No pretrained weights found => training with random weights")
 
 
-    train_data = extract_features(model, train_loader)
-    test_data = extract_features(model, val_loader)
-    train_features = train_data['feats']
-    test_features = test_data['feats']
+    features = extract_features(args, model, data_loader)
+    train_features = features['feats'][train_ids]
+    test_features = features['feats'][test_ids]
     print('Normalize...')
     train_features = torch.nn.functional.normalize(train_features, dim=1, p=2)
     test_features = torch.nn.functional.normalize(test_features, dim=1, p=2)
-    train_labels = train_data['labels']
-    test_labels = test_data['labels']
+    train_labels = features['labels'][train_ids]
+    test_labels = features['labels'][test_ids]
     result = collect_knn_results(train_features, train_labels, test_features,
-                                 test_labels, args.nb_knn, args.temperature,
-                                 with_train=args.with_train)
+                                 test_labels, args.nb_knn, args.temperature)
     print(result)
-    result.to_csv(args.outfile)
+    #result.to_csv(args.outfile)
 
 if __name__ == "__main__":
     main()
