@@ -60,7 +60,7 @@ class STL10withindex(datasets.STL10):
         return idx, img, label
 
 @torch.no_grad()
-def extract_features(args, model, data_loader):
+def extract_features(model, data_loader):
     metric_logger = MetricLogger(delimiter="  ")
     features = None
     count = 0
@@ -82,19 +82,13 @@ def extract_features(args, model, data_loader):
         labels.index_copy_(0, index_all.cpu(), lab.cpu())
             
         count += samples.shape[0]
-        if args.debug:
-            break
 
     print('Done with extracting features')
     return {'feats': features, 'labels': labels}
 
 
-
-def main():
-    args = parser.parse_args()
-    fix_random_seeds(args.seed)
-
-    # build data
+def getknn(nb_knn, temperature, data_path,batch_size, model):
+   # build data
     tr_normalize = transforms.Normalize(
         mean = [0.43, 0.42, 0.39],
         std = [0.27, 0.26, 0.27]
@@ -104,7 +98,7 @@ def main():
         transforms.ToTensor(),
         tr_normalize,
     ])
-    dataset = STL10withindex(args.data_path, split='train', transform=transform)
+    dataset = STL10withindex(data_path, split='train', transform=transform)
     allids = [i for i in range(len(dataset))]
     random.shuffle(allids)
     split = int(0.9 * len(allids))
@@ -112,11 +106,28 @@ def main():
     test_ids = allids[split:]
     data_loader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=args.batch_size,
-        num_workers=args.workers,
+        batch_size=256,
+        num_workers=0,
         pin_memory=True,
     )
     logger.info("Building data done")
+
+    features = extract_features(model, data_loader)
+    train_features = features['feats'][train_ids]
+    test_features = features['feats'][test_ids]
+    print('Normalize...')
+    train_features = torch.nn.functional.normalize(train_features, dim=1, p=2)
+    test_features = torch.nn.functional.normalize(test_features, dim=1, p=2)
+    train_labels = features['labels'][train_ids]
+    test_labels = features['labels'][test_ids]
+    result = collect_knn_results(train_features, train_labels, test_features,
+                                 test_labels, nb_knn=nb_knn, temperature=temperature)
+    return result
+
+
+def main():
+    args = parser.parse_args()
+    fix_random_seeds(args.seed)
 
     # build model
     model = resnet_models.__dict__[args.arch](output_dim=0, eval_mode=True)
@@ -142,20 +153,8 @@ def main():
         logger.info("Load pretrained model with msg: {}".format(msg))
     else:
         logger.info("No pretrained weights found => training with random weights")
-
-
-    features = extract_features(args, model, data_loader)
-    train_features = features['feats'][train_ids]
-    test_features = features['feats'][test_ids]
-    print('Normalize...')
-    train_features = torch.nn.functional.normalize(train_features, dim=1, p=2)
-    test_features = torch.nn.functional.normalize(test_features, dim=1, p=2)
-    train_labels = features['labels'][train_ids]
-    test_labels = features['labels'][test_ids]
-    result = collect_knn_results(train_features, train_labels, test_features,
-                                 test_labels, args.nb_knn, args.temperature)
+    result = getknn(args.nb_knn, args.temperature, args.data_path, args.batch_size,model)
     print(result)
-    #result.to_csv(args.outfile)
 
 if __name__ == "__main__":
     main()
