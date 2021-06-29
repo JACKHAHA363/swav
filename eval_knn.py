@@ -9,6 +9,7 @@ import argparse
 import os
 import time
 from logging import getLogger
+import logging
 
 import torch
 import torch.nn as nn
@@ -21,14 +22,15 @@ import torchvision.datasets as datasets
 from knn_utils import collect_knn_results
 import random
 from src.utils import (
-    initialize_exp,
     fix_random_seeds,
     MetricLogger
 )
 import src.resnet50 as resnet_models
 
 logger = getLogger(__file__)
-
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+logger.addHandler(console_handler)
 
 parser = argparse.ArgumentParser(description="Evaluate models: Linear classification on ImageNet")
 
@@ -125,7 +127,7 @@ def main():
 
     # load weights
     if args.pretrained is not None and os.path.isfile(args.pretrained):
-        state_dict = torch.load(args.pretrained, map_location="cuda:" + str(args.gpu_to_work_on))
+        state_dict = torch.load(args.pretrained, map_location="cpu")
         if "state_dict" in state_dict:
             state_dict = state_dict["state_dict"]
         # remove prefixe "module."
