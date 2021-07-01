@@ -22,7 +22,8 @@ import torch.optim
 import apex
 from apex.parallel.LARC import LARC
 from scipy.sparse import csr_matrix
-
+from eval_knn import getknn
+from torch.utils.tensorboard import SummaryWriter
 from src.utils import (
     bool_flag,
     initialize_exp,
@@ -118,6 +119,10 @@ def main():
     init_distributed_mode(args)
     fix_random_seeds(args.seed)
     logger, training_stats = initialize_exp(args, "epoch", "loss")
+    if args.rank == 0:
+        tb_logger = SummaryWriter(os.path.join(args.dump_path, 'tb'))
+    else:
+        tb_logger = None
 
     # build data
     train_dataset = MultiCropDatasetSTL10(
@@ -207,6 +212,17 @@ def main():
         # train the network for one epoch
         logger.info("============ Starting epoch %i ... ============" % epoch)
 
+        # Evaluate KNN
+        if args.rank == 0:
+            mod = model.module
+            mod.eval()
+            knn_result = getknn(nb_knn=[1,5], temperature=0.1, data_path=args.data_path, 
+                                batch_size=256, model=mod)
+            knn_result = knn_result.set_index('k').to_dict()
+            tb_logger.add_scalar('knn/top1_1nn', knn_result['top1'][1], global_step=epoch)
+            tb_logger.add_scalar('knn/top1_5nn', knn_result['top1'][5], global_step=epoch)
+            mod.train()
+
         # set sampler
         train_loader.sampler.set_epoch(epoch)
 
@@ -219,6 +235,7 @@ def main():
             lr_schedule,
             local_memory_index,
             local_memory_embeddings,
+            tb_logger=tb_logger
         )
         training_stats.update(scores)
 
@@ -242,7 +259,7 @@ def main():
                     "local_memory_index": local_memory_index}, mb_path)
 
 
-def train(loader, model, optimizer, epoch, schedule, local_memory_index, local_memory_embeddings):
+def train(loader, model, optimizer, epoch, schedule, local_memory_index, local_memory_embeddings, tb_logger=None):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -311,6 +328,10 @@ def train(loader, model, optimizer, epoch, schedule, local_memory_index, local_m
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
+        if tb_logger is not None and steps % 50 == 0:
+            steps = it + epoch * len(loader)
+            tb_logger.add_scalar('train/loss', losses.avg, steps)
+            tb_logger.add_scalar('train/lr', optimizer.optim.param_groups[0]["lr"], steps)
     return (epoch, losses.avg), local_memory_index, local_memory_embeddings
 
 
