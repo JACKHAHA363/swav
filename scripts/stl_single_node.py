@@ -31,7 +31,7 @@ CMD += ["main_deepclusterv2.py",
 "--size_crops", "96",
 "--min_scale_crops", "0.33",
 "--max_scale_crops", "1.",
-"--crops_for_assign", "0 1",
+"--crops_for_assign", "0", "1",
 "--temperature", "0.1",
 "--feat_dim", "128",
 "--nmb_prototypes", "512",
@@ -49,5 +49,5 @@ CMD += ["main_deepclusterv2.py",
 "--dump_path", EXPERIMENT_PATH]
 print(' '.join(CMD))
 
-#train_proc = subprocess.Popen(CMD)
-#train_proc.wait()
+train_proc = subprocess.Popen(CMD)
+train_proc.wait()
