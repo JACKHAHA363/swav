@@ -328,10 +328,10 @@ def train(loader, model, optimizer, epoch, schedule, local_memory_index, local_m
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
-        if tb_logger is not None and steps % 50 == 0:
-            steps = it + epoch * len(loader)
-            tb_logger.add_scalar('train/loss', losses.avg, steps)
-            tb_logger.add_scalar('train/lr', optimizer.optim.param_groups[0]["lr"], steps)
+            if tb_logger is not None:
+                steps = it + epoch * len(loader)
+                tb_logger.add_scalar('train/loss', losses.avg, steps)
+                tb_logger.add_scalar('train/lr', optimizer.optim.param_groups[0]["lr"], steps)
     return (epoch, losses.avg), local_memory_index, local_memory_embeddings
 
 
