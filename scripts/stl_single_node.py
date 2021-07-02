@@ -19,12 +19,12 @@ def find_free_network_port() -> int:
     return port
 
 DATASET_PATH="/data/home/lyuchen/swav_exp/new_stl10"
-EXPERIMENT_PATH="./experiments/stl/deepclusterv2_400ep_2x224_pretrain"
+EXPERIMENT_PATH="./experiments/stl/deepclusterv2_400ep_2x224_pretrain_4gpu"
 os.makedirs(EXPERIMENT_PATH, exist_ok=True)
 PORT = find_free_network_port()
 
 # Change --nproc_per_node for single node multi-GPU
-CMD = ["python", "-m", "torch.distributed.launch", "--nnodes", "1", "--nproc_per_node", "1"]
+CMD = ["python", "-m", "torch.distributed.launch", "--nnodes", "1", "--nproc_per_node", "4"]
 CMD += ["main_deepclusterv2.py",
 "--data_path", DATASET_PATH,
 "--nmb_crops", "2",
@@ -33,13 +33,14 @@ CMD += ["main_deepclusterv2.py",
 "--max_scale_crops", "1.",
 "--crops_for_assign", "0", "1",
 "--temperature", "0.1",
+"--hidden_mlp", "1024",
 "--feat_dim", "128",
 "--nmb_prototypes", "512",
 "--epochs", "400",
 "--batch_size", "64",
 "--base_lr", "4.8",
 "--final_lr", "0.0048",
-"--freeze_prototypes_niters", "300000",
+"--freeze_prototypes_niters", "40000",
 "--wd", "0.000001",
 "--warmup_epochs", "10",
 "--start_warmup", "0.3",
