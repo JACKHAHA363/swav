@@ -112,6 +112,9 @@ parser.add_argument("--dump_path", type=str, default=".",
                     help="experiment dump path for checkpoints and log")
 parser.add_argument("--seed", type=int, default=31, help="seed")
 
+#########################
+parser.add_argument('--nb_neighbor', default=0, help='If non zero, use KNN label', type=int)
+parser.add_argument('--knn_temp', default=0.07, type=float, help='From dino')
 
 def main():
     global args
@@ -430,7 +433,36 @@ def cluster_memory(model, local_memory_index, local_memory_embeddings, size_data
 
             # next memory bank to use
             j = (j + 1) % len(args.crops_for_assign)
-
+    if args.nb_neighbor > 0:
+        embs = local_memory_embeddings[0]
+        start = 0
+        new_assignments = -100 * torch.ones(len(args.nmb_prototypes), size_dataset).long().to(local_memory_index.device)
+        retrieval_one_hot = torch.zeros(args.nb_neighbor, args.nmb_prototypes[0]).to(local_memory_index.device)
+        for start in range(0, len(embs), 128):
+            batch_embs = embs[start: start + 128]
+            batch_size = batch_embs.shape[0]
+            similarity = torch.mm(batch_embs, embs.T)
+            distances, indices = similarity.topk(args.nb_neighbor + 1, largest=True, sorted=True)
+            
+            # Leave one out
+            distances = distances[:,1:]
+            indices = indices[:, 1:]
+            
+            retrieved_neighbors = assignments[0][local_memory_index[indices]].cuda()
+            retrieval_one_hot.resize_(batch_size * args.nb_neighbor, args.nmb_prototypes[0]).zero_()
+            retrieval_one_hot.scatter_(1, retrieved_neighbors.view(-1, 1), 1)
+            distances_transform = distances.clone().div_(args.knn_temp).exp_()
+            probs = torch.sum(
+                torch.mul(
+                    retrieval_one_hot.view(batch_size, -1, args.nmb_prototypes[0])[:, :args.nb_neighbor],
+                    distances_transform.view(batch_size, -1, 1)[:,:args.nb_neighbor],
+                ),
+                1,
+            )
+            _, predictions = probs.sort(1, True)
+            batch_idx = local_memory_index[start: start + 128]
+            new_assignments[0][batch_idx] = predictions.argmax(-1)
+        assignments = new_assignments.cpu()
     return assignments
 
 
