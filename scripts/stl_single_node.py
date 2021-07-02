@@ -19,13 +19,13 @@ def find_free_network_port() -> int:
     return port
 
 DATASET_PATH="/data/home/lyuchen/swav_exp/new_stl10"
-#EXPERIMENT_PATH="./experiments/stl/deepclusterv2_400ep_2x224_pretrain_4gpu"
-EXPERIMENT_PATH="./experiments/stl/debug"
+EXPERIMENT_PATH="./experiments/stl/deepclusterv2_400ep_2x224_pretrain_4gpu_knn5"
+#EXPERIMENT_PATH="./experiments/stl/debug"
 os.makedirs(EXPERIMENT_PATH, exist_ok=True)
 PORT = find_free_network_port()
 
 # Change --nproc_per_node for single node multi-GPU
-CMD = ["python", "-m", "torch.distributed.launch", "--nnodes", "1", "--nproc_per_node", "1"]
+CMD = ["python", "-m", "torch.distributed.launch", "--nnodes", "1", "--nproc_per_node", "4"]
 CMD += ["main_deepclusterv2.py",
 "--nb_neighbor", "5",
 "--data_path", DATASET_PATH,
