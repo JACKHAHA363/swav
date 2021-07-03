@@ -221,7 +221,7 @@ def init_distributed_mode(args):
             )
             args.dist_url = "tcp://{host}:{port}".format(
                 host=hostnames.split()[0].decode("utf-8"),
-                port=40000,
+                port=62342,
             )
         except subprocess.CalledProcessError as e:  # scontrol failed
             print('Scontrol failed')

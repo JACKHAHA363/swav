@@ -106,7 +106,7 @@ parser.add_argument("--workers", default=10, type=int,
 parser.add_argument("--checkpoint_freq", type=int, default=25,
                     help="Save the model periodically")
 parser.add_argument("--sync_bn", type=str, default="pytorch", help="synchronize bn")
-parser.add_argument("--syncbn_process_group_size", type=int, default=8, help=""" see
+parser.add_argument("--syncbn_process_group_size", type=int, default=1, help=""" see
                     https://github.com/NVIDIA/apex/blob/master/apex/parallel/__init__.py#L58-L67""")
 parser.add_argument("--dump_path", type=str, default=".",
                     help="experiment dump path for checkpoints and log")
