@@ -128,6 +128,7 @@ def main():
         tb_logger = None
 
     # build data
+    logger.info('Building data...')
     train_dataset = MultiCropDatasetSTL10(
         args.data_path,
         args.size_crops,
