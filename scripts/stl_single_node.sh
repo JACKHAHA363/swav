@@ -6,15 +6,15 @@
 #SBATCH --nodes=1
 #SBATCH --time=12:00:00
 #SBATCH --signal=SIGUSR1@120
-#SBATCH --exclude=a100-st-p4d24xlarge-38
+#SBATCH --exclude=a100-st-p4d24xlarge-38,a100-st-p4d24xlarge-4
 
 DATASET_PATH="/data/home/lyuchen/swav_exp/new_stl10"
-EXPERIMENT_PATH="./experiments/stl/srun_deepcluster_knn0"
+EXPERIMENT_PATH="./experiments/stl/srun_deepcluster_knn5"
 mkdir -p $EXPERIMENT_PATH
 
 srun --output=${EXPERIMENT_PATH}/%j.out --error=${EXPERIMENT_PATH}/%j.err --label \
 python -u main_deepclusterv2.py \
---nb_neighbor 0 \
+--nb_neighbor 5 \
 --data_path $DATASET_PATH \
 --nmb_crops 2 \
 --size_crops 96 \
