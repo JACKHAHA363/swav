@@ -137,6 +137,7 @@ def main():
         args.max_scale_crops,
         return_index=True,
     )
+    logger.info('Building dataset done')
     sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
