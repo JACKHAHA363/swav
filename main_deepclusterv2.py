@@ -115,6 +115,7 @@ parser.add_argument("--seed", type=int, default=31, help="seed")
 #########################
 parser.add_argument('--nb_neighbor', default=0, help='If non zero, use KNN label', type=int)
 parser.add_argument('--knn_temp', default=0.07, type=float, help='From dino')
+parser.add_argument('--knn_epoch', default=50, type=int, help="Do KNN after this")
 
 def main():
     global args
@@ -270,7 +271,7 @@ def train(loader, model, optimizer, epoch, schedule, local_memory_index, local_m
     losses = AverageMeter()
     model.train()
     cross_entropy = nn.CrossEntropyLoss(ignore_index=-100)
-    assignments = cluster_memory(model, local_memory_index, local_memory_embeddings, len(loader.dataset))
+    assignments = cluster_memory(model, local_memory_index, local_memory_embeddings, len(loader.dataset),epoch=epoch)
     logger.info('Clustering for epoch {} done.'.format(epoch))
 
     end = time.time()
@@ -368,7 +369,7 @@ def init_memory(dataloader, model):
     return local_memory_index, local_memory_embeddings
 
 
-def cluster_memory(model, local_memory_index, local_memory_embeddings, size_dataset, nmb_kmeans_iters=10):
+def cluster_memory(model, local_memory_index, local_memory_embeddings, size_dataset, epoch, nmb_kmeans_iters=10):
     j = 0
     assignments = -100 * torch.ones(len(args.nmb_prototypes), size_dataset).long()
     with torch.no_grad():
@@ -435,10 +436,10 @@ def cluster_memory(model, local_memory_index, local_memory_embeddings, size_data
 
             # next memory bank to use
             j = (j + 1) % len(args.crops_for_assign)
-    if args.nb_neighbor > 0:
+    if args.nb_neighbor > 0 and epoch >= args.knn_epoch:
         embs = local_memory_embeddings[0]
         start = 0
-        new_assignments = -100 * torch.ones(len(args.nmb_prototypes), size_dataset).long().to(local_memory_index.device)
+        local_assignments = []
         retrieval_one_hot = torch.zeros(args.nb_neighbor, args.nmb_prototypes[0]).to(local_memory_index.device)
         for start in range(0, len(embs), 128):
             batch_embs = embs[start: start + 128]
@@ -462,10 +463,28 @@ def cluster_memory(model, local_memory_index, local_memory_embeddings, size_data
                 1,
             )
             _, predictions = probs.sort(1, True)
-            batch_idx = local_memory_index[start: start + 128]
-            new_assignments[0][batch_idx] = predictions.argmax(-1)
-        assignments = new_assignments.cpu()
-    return assignments
+            local_assignments.append(predictions.argmax(-1))
+
+        # [dataset / word_size, nmb_prototyes]
+        local_assignments = torch.cat(local_assignments, dim=0)
+        assignments_all = torch.empty(args.world_size, local_assignments.size(0),
+                                      dtype=local_assignments.dtype, device=local_assignments.device)
+        assignments_all = list(assignments_all.unbind(0))
+        dist_process = dist.all_gather(assignments_all, local_assignments, async_op=True)
+        dist_process.wait()
+        assignments_all = torch.cat(assignments_all).cpu()
+
+        # gather the indexes
+        indexes_all = torch.empty(args.world_size, local_memory_index.size(0),
+                                  dtype=local_memory_index.dtype, device=local_memory_index.device)
+        indexes_all = list(indexes_all.unbind(0))
+        dist_process = dist.all_gather(indexes_all, local_memory_index, async_op=True)
+        dist_process.wait()
+        indexes_all = torch.cat(indexes_all).cpu()
+
+        # log assignments
+        assignments[0][indexes_all] = assignments_all
+    return assignments.cpu()
 
 
 def get_indices_sparse(data):
