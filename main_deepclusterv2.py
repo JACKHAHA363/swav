@@ -463,7 +463,7 @@ def cluster_memory(model, local_memory_index, local_memory_embeddings, size_data
                 1,
             )
             _, predictions = probs.sort(1, True)
-            local_assignments.append(predictions.argmax(-1))
+            local_assignments.append(predictions[:, 0])
 
         # [dataset / word_size, nmb_prototyes]
         local_assignments = torch.cat(local_assignments, dim=0)
