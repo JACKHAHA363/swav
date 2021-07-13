@@ -9,13 +9,13 @@
 #SBATCH --exclude=a100-st-p4d24xlarge-8
 
 DATASET_PATH="/data/home/lyuchen/swav_exp/new_stl10"
-EXPERIMENT_PATH="./experiments/stl/srun_deepcluster_knn0_lr1.2"
+EXPERIMENT_PATH="./experiments/stl/srun_deepcluster_knn1_epoch0_lr1.2"
 mkdir -p $EXPERIMENT_PATH
 
 srun --output=${EXPERIMENT_PATH}/%j.out --error=${EXPERIMENT_PATH}/%j.err --label \
 python -u main_deepclusterv2.py \
 --knn_epoch 0 \
---nb_neighbor 0 \
+--nb_neighbor 1 \
 --data_path $DATASET_PATH \
 --nmb_crops 2 \
 --size_crops 96 \
