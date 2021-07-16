@@ -25,7 +25,7 @@ os.makedirs(EXPERIMENT_PATH, exist_ok=True)
 PORT = find_free_network_port()
 
 # Change --nproc_per_node for single node multi-GPU
-CMD = ["python", "-m", "torch.distributed.launch", "--nnodes", "1", "--nproc_per_node", "4"]
+CMD = ["python", "-m", "torch.distributed.launch", "--nnodes", "1", "--nproc_per_node", "1"]
 CMD += ["main_deepclusterv2.py",
 "--knn_epoch", "0",
 "--nb_neighbor", "5",

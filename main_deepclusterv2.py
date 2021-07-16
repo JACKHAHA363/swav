@@ -434,56 +434,47 @@ def cluster_memory(model, local_memory_index, local_memory_embeddings, size_data
             # log assignments
             assignments[i_K][indexes_all] = assignments_all
 
+            # compute KNN assignments 
+            if args.nb_neighbor > 0 and epoch >= args.knn_epoch:
+                embs = local_memory_embeddings[j]
+                start = 0
+                knn_assignments = []
+                retrieval_one_hot = torch.zeros(args.nb_neighbor, K).to(local_memory_index.device)
+                for start in range(0, len(embs), 128):
+                    batch_embs = embs[start: start + 128]
+                    batch_size = batch_embs.shape[0]
+                    similarity = torch.mm(batch_embs, embs.T)
+                    distances, indices = similarity.topk(args.nb_neighbor + 1, largest=True, sorted=True)
+
+                    # Leave one out
+                    distances = distances[:,1:]
+                    indices = indices[:, 1:]
+            
+                    retrieved_neighbors = assignments[i_K][local_memory_index[indices]].cuda()
+                    retrieval_one_hot.resize_(batch_size * args.nb_neighbor, K).zero_()
+                    retrieval_one_hot.scatter_(1, retrieved_neighbors.view(-1, 1), 1)
+                    distances_transform = distances.clone().div_(args.knn_temp).exp_()
+                    probs = torch.sum(
+                        torch.mul(
+                            retrieval_one_hot.view(batch_size, -1, K)[:, :args.nb_neighbor],
+                            distances_transform.view(batch_size, -1, 1)[:,:args.nb_neighbor],
+                            ),
+                            1,
+                        )
+                    _, predictions = probs.sort(1, True)
+                    knn_assignments.append(predictions[:, 0])
+
+                knn_assignments = torch.cat(knn_assignments, dim=0)
+                knn_assignments_all = torch.empty(args.world_size, knn_assignments.size(0),
+                                                  dtype=knn_assignments.dtype, device=knn_assignments.device)
+                knn_assignments_all = list(knn_assignments_all.unbind(0))
+                dist_process = dist.all_gather(knn_assignments_all, knn_assignments, async_op=True)
+                dist_process.wait()
+                knn_assignments_all = torch.cat(knn_assignments_all).cpu()
+                assignments[i_K][indexes_all] = knn_assignments_all
+
             # next memory bank to use
             j = (j + 1) % len(args.crops_for_assign)
-    if args.nb_neighbor > 0 and epoch >= args.knn_epoch:
-        embs = local_memory_embeddings[0]
-        start = 0
-        local_assignments = []
-        retrieval_one_hot = torch.zeros(args.nb_neighbor, args.nmb_prototypes[0]).to(local_memory_index.device)
-        for start in range(0, len(embs), 128):
-            batch_embs = embs[start: start + 128]
-            batch_size = batch_embs.shape[0]
-            similarity = torch.mm(batch_embs, embs.T)
-            distances, indices = similarity.topk(args.nb_neighbor + 1, largest=True, sorted=True)
-            
-            # Leave one out
-            distances = distances[:,1:]
-            indices = indices[:, 1:]
-            
-            retrieved_neighbors = assignments[0][local_memory_index[indices]].cuda()
-            retrieval_one_hot.resize_(batch_size * args.nb_neighbor, args.nmb_prototypes[0]).zero_()
-            retrieval_one_hot.scatter_(1, retrieved_neighbors.view(-1, 1), 1)
-            distances_transform = distances.clone().div_(args.knn_temp).exp_()
-            probs = torch.sum(
-                torch.mul(
-                    retrieval_one_hot.view(batch_size, -1, args.nmb_prototypes[0])[:, :args.nb_neighbor],
-                    distances_transform.view(batch_size, -1, 1)[:,:args.nb_neighbor],
-                ),
-                1,
-            )
-            _, predictions = probs.sort(1, True)
-            local_assignments.append(predictions[:, 0])
-
-        # [dataset / word_size, nmb_prototyes]
-        local_assignments = torch.cat(local_assignments, dim=0)
-        assignments_all = torch.empty(args.world_size, local_assignments.size(0),
-                                      dtype=local_assignments.dtype, device=local_assignments.device)
-        assignments_all = list(assignments_all.unbind(0))
-        dist_process = dist.all_gather(assignments_all, local_assignments, async_op=True)
-        dist_process.wait()
-        assignments_all = torch.cat(assignments_all).cpu()
-
-        # gather the indexes
-        indexes_all = torch.empty(args.world_size, local_memory_index.size(0),
-                                  dtype=local_memory_index.dtype, device=local_memory_index.device)
-        indexes_all = list(indexes_all.unbind(0))
-        dist_process = dist.all_gather(indexes_all, local_memory_index, async_op=True)
-        dist_process.wait()
-        indexes_all = torch.cat(indexes_all).cpu()
-
-        # log assignments
-        assignments[0][indexes_all] = assignments_all
     return assignments.cpu()
 
 
