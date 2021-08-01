@@ -116,6 +116,7 @@ parser.add_argument("--seed", type=int, default=31, help="seed")
 parser.add_argument('--nb_neighbor', default=0, help='If non zero, use KNN label', type=int)
 parser.add_argument('--knn_temp', default=0.07, type=float, help='From dino')
 parser.add_argument('--knn_epoch', default=50, type=int, help="Do KNN after this")
+parser.add_argument('--fast_dev_run', default=0, type=int)
 
 def main():
     global args
@@ -220,6 +221,7 @@ def main():
 
         # Evaluate KNN
         if args.rank == 0:
+            import ipdb; ipdb.set_trace()
             mod = model.module
             mod.eval()
             knn_result = getknn(nb_knn=[1,5], temperature=0.1, data_path=args.data_path, 
@@ -346,6 +348,7 @@ def init_memory(dataloader, model):
     local_memory_index = torch.zeros(size_memory_per_process).long().cuda()
     local_memory_embeddings = torch.zeros(len(args.crops_for_assign), size_memory_per_process, args.feat_dim).cuda()
     start_idx = 0
+    nb_batchs = 0
     with torch.no_grad():
         logger.info('Start initializing the memory banks')
         for index, inputs in dataloader:
@@ -365,6 +368,10 @@ def init_memory(dataloader, model):
                     start_idx : start_idx + nmb_unique_idx
                 ] = embeddings
             start_idx += nmb_unique_idx
+
+            nb_batchs += 1
+            if args.fast_dev_run > 0 and nb_batchs == args.fast_dev_run:
+                break
     logger.info('Initializion of the memory banks done.')
     return local_memory_index, local_memory_embeddings
 

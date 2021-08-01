@@ -22,7 +22,7 @@ import torch.optim
 import apex
 from apex.parallel.LARC import LARC
 from scipy.sparse import csr_matrix
-from eval_knn import getknn
+from eval_knn_stl import getknn
 from torch.utils.tensorboard import SummaryWriter
 from src.utils import (
     bool_flag,
