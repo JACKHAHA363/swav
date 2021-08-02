@@ -22,7 +22,7 @@ import torch.optim
 import apex
 from apex.parallel.LARC import LARC
 from scipy.sparse import csr_matrix
-from eval_knn import getknn
+from eval_knn_imagenet import getknn
 from torch.utils.tensorboard import SummaryWriter
 from src.utils import (
     bool_flag,
@@ -132,7 +132,7 @@ def main():
     # build data
     logger.info('Building data...')
     train_dataset = MultiCropDataset(
-        args.data_path,
+        os.path.join(args.data_path, 'train'),
         args.size_crops,
         args.nmb_crops,
         args.min_scale_crops,
@@ -221,15 +221,15 @@ def main():
 
         # Evaluate KNN
         if args.rank == 0:
-            import ipdb; ipdb.set_trace()
             mod = model.module
             mod.eval()
             knn_result = getknn(nb_knn=[1,5], temperature=0.1, data_path=args.data_path, 
-                                batch_size=256, model=mod)
+                                batch_size=256, model=mod, fast_dev_run=100)
             knn_result = knn_result.set_index('k').to_dict()
             tb_logger.add_scalar('knn/top1_1nn', knn_result['top1'][1], global_step=epoch)
             tb_logger.add_scalar('knn/top1_5nn', knn_result['top1'][5], global_step=epoch)
             mod.train()
+        dist.barrier()
 
         # set sampler
         train_loader.sampler.set_epoch(epoch)

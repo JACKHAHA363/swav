@@ -6,6 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --time=12:00:00
 #SBATCH --signal=SIGUSR1@120
+#SBATCH --exclude=a100-st-p4d24xlarge-35
 
 DATASET_PATH="/data/home/lyuchen/swav_exp/new_stl10"
 EXPERIMENT_PATH="./experiments/stl/srun_deepcluster_knn0_epoch0_lr1.2_new"
