@@ -14,13 +14,13 @@ dist_url+=$master_node
 dist_url+=:40000
 
 DATASET_PATH="/datasets01/imagenet_full_size/061417"
-EXPERIMENT_PATH="./experiments/imagenet/deepclusterv2"
+EXPERIMENT_PATH="./experiments/imagenet/deepclusterv2_nn5"
 mkdir -p $EXPERIMENT_PATH
 
 srun --output=${EXPERIMENT_PATH}/%j.out --error=${EXPERIMENT_PATH}/%j.err --label \
 python -u main_deepclusterv2_imagenet.py \
 --knn_epoch 0 \
---nb_neighbor 0 \
+--nb_neighbor 5 \
 --data_path $DATASET_PATH \
 --nmb_crops 2 \
 --size_crops 224 \

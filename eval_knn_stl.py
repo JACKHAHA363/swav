@@ -12,6 +12,7 @@ from logging import getLogger
 import logging
 
 import torch
+from torch.distributed.distributed_c10d import all_gather
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -98,28 +99,32 @@ def getknn(nb_knn, temperature, data_path,batch_size, model):
         transforms.ToTensor(),
         tr_normalize,
     ])
-    dataset = STL10withindex(data_path, split='train', transform=transform)
-    allids = [i for i in range(len(dataset))]
-    random.shuffle(allids)
-    split = int(0.9 * len(allids))
-    train_ids = allids[:split]
-    test_ids = allids[split:]
-    data_loader = torch.utils.data.DataLoader(
-        dataset,
+    train_dataset = STL10withindex(data_path, split='train', transform=transform)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
         batch_size=256,
         num_workers=0,
         pin_memory=True,
     )
     logger.info("Building data done")
+    features = extract_features(model, train_loader)
+    train_features = features['feats']
+    train_labels = features['labels']
 
-    features = extract_features(model, data_loader)
-    train_features = features['feats'][train_ids]
-    test_features = features['feats'][test_ids]
+    test_dataset = STL10withindex(data_path, split='test', transform=transform)
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=256,
+        num_workers=0,
+        pin_memory=True,
+    )
+    features = extract_features(model, test_loader)
+    test_features = features['feats']
+    test_labels = features['labels']
+
     print('Normalize...')
     train_features = torch.nn.functional.normalize(train_features, dim=1, p=2)
     test_features = torch.nn.functional.normalize(test_features, dim=1, p=2)
-    train_labels = features['labels'][train_ids]
-    test_labels = features['labels'][test_ids]
     result = collect_knn_results(train_features, train_labels, test_features,
                                  test_labels, nb_knn=nb_knn, temperature=temperature)
     return result
