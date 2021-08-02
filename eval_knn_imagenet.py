@@ -50,40 +50,31 @@ parser.add_argument("--temperature", default=0.1)
 #########################
 parser.add_argument("--arch", default="resnet50", type=str, help="convnet architecture")
 parser.add_argument("--pretrained", default=None)
-class STL10withindex(datasets.STL10):
-    def __getitem__(self, idx):
-        img, label = super().__getitem__(idx)
-        return idx, img, label
+parser.add_argument("--fast_dev_run", default=0, type=int)
 
 @torch.no_grad()
-def extract_features(model, data_loader):
+def extract_features(model, data_loader, fast_dev_run=0):
     metric_logger = MetricLogger(delimiter="  ")
-    features = None
+    features = []
     count = 0
-    labels = None
-    for index, samples, lab in metric_logger.log_every(data_loader, 10):
+    labels = []
+    for samples, lab in metric_logger.log_every(data_loader, 10):
         samples = samples.cuda(non_blocking=True)
-        index = index.cuda(non_blocking=True)
         feats = model.forward_backbone(samples).clone()
-
-        if features is None:
-            features = torch.zeros(len(data_loader.dataset), feats.shape[-1])
-            labels = torch.zeros(len(data_loader.dataset)).long()
-            print(f"Storing features into tensor of shape {features.shape}")
-        index_all = index
         output_all = feats
 
         # update storage feature matrix
-        features.index_copy_(0, index_all.cpu(), output_all.cpu())
-        labels.index_copy_(0, index_all.cpu(), lab.cpu())
-            
-        count += samples.shape[0]
+        features.append(output_all.cpu())
+        labels.append(lab.cpu())
+        count += 1
+        if fast_dev_run > 0 and count > fast_dev_run:
+            break
 
     print('Done with extracting features')
-    return {'feats': features, 'labels': labels}
+    return {'feats': torch.cat(features), 'labels': torch.cat(labels)}
 
 
-def getknn(nb_knn, temperature, data_path, batch_size, model):
+def getknn(nb_knn, temperature, data_path, batch_size, model, fast_dev_run):
     # build data
     train_dataset = datasets.ImageFolder(os.path.join(data_path, "train"))
     val_dataset = datasets.ImageFolder(os.path.join(data_path, "val"))
@@ -98,34 +89,34 @@ def getknn(nb_knn, temperature, data_path, batch_size, model):
     ])
     train_dataset.transform = transform
     val_dataset.transform = transform
-    sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        sampler=sampler,
         batch_size=batch_size,
         num_workers=12,
         pin_memory=True,
+        shuffle=True,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=batch_size,
         num_workers=12,
         pin_memory=True,
+        shuffle=True,
     )
     logger.info("Building data done")
 
-    ret = extract_features(model, train_loader)
+    ret = extract_features(model, train_loader, fast_dev_run)
     train_features = ret['feats']
     train_labels = ret['labels']
-
-    ret = extract_features(model, val_loader)
+    ret = extract_features(model, val_loader, fast_dev_run)
     test_features = ret['feats']
     test_labels = ret['labels']
     print('Normalize...')
     train_features = torch.nn.functional.normalize(train_features, dim=1, p=2)
     test_features = torch.nn.functional.normalize(test_features, dim=1, p=2)
     result = collect_knn_results(train_features, train_labels, test_features,
-                                 test_labels, nb_knn=nb_knn, temperature=temperature)
+                                 test_labels, nb_knn=nb_knn, temperature=temperature, 
+                                 nb_classes=1000)
     return result
 
 
@@ -157,7 +148,7 @@ def main():
         logger.info("Load pretrained model with msg: {}".format(msg))
     else:
         logger.info("No pretrained weights found => training with random weights")
-    result = getknn(args.nb_knn, args.temperature, args.data_path, args.batch_size,model)
+    result = getknn(args.nb_knn, args.temperature, args.data_path, args.batch_size,model, args.fast_dev_run)
     print(result)
 
 if __name__ == "__main__":

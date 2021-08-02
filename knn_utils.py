@@ -183,8 +183,8 @@ def gini(x):
 
 
 def collect_knn_results(train_features, train_labels, test_features, test_labels,
-                        nb_knn, temperature):
-    nb_classes = (train_labels.max()).item() + 1
+                        nb_knn, temperature, nb_classes=None):
+    nb_classes = (train_labels.max()).item() + 1 if nb_classes is None else nb_classes
     test_result = knn_classifier(train_features, train_labels,
                                  test_features, test_labels, nb_knn,
                                  temperature, num_classes=nb_classes)
