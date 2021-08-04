@@ -43,7 +43,7 @@ parser.add_argument("--data_path", type=str, default="/datasets01/imagenet_full_
 parser.add_argument("--batch_size", default=128, type=int)
 parser.add_argument("--debug", action='store_true')
 parser.add_argument("--nb_knn", default=[1, 5, 10, 20])
-parser.add_argument("--temperature", default=0.1)
+parser.add_argument("--temperature", default=0.07)
 
 #########################
 #### model parameters ###
