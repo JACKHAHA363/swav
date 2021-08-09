@@ -1,12 +1,11 @@
 #!/bin/bash
 #SBATCH --partition=a100
-#SBATCH --nodes=8
-#SBATCH --gres=gpu:8
-#SBATCH --ntasks-per-node=8
+#SBATCH --nodes=16
+#SBATCH --gres=gpu:4
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=12
 #SBATCH --job-name=deepclusterv2_400ep_2x224_pretrain
 #SBATCH --time=48:00:00
-#SBATCH --exclude=a100-st-p4d24xlarge-35
 
 master_node=${SLURM_NODELIST:0:9}${SLURM_NODELIST:10:4}
 dist_url="tcp://"
