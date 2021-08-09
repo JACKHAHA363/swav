@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=a100
-#SBATCH --nodes=2
+#SBATCH --nodes=8
 #SBATCH --gres=gpu:8
 #SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=12
@@ -32,8 +32,8 @@ python -u main_deepclusterv2_imagenet.py \
 --nmb_prototypes 3000 3000 3000 \
 --epochs 100 \
 --batch_size 64 \
---base_lr 1.2 \
---final_lr 0.0012 \
+--base_lr 4.8 \
+--final_lr 0.0048 \
 --freeze_prototypes_niters 300000 \
 --wd 0.000001 \
 --workers 12 \
